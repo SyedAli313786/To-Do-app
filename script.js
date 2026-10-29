@@ -14,7 +14,7 @@ async function loadTasks() {
     for (let task of tasks) {
         let li = document.createElement("li");
 
-        // Checkbox
+        
         let checkbox = document.createElement("input");
         checkbox.type = "checkbox";
         checkbox.checked = task[2] === 1;
@@ -40,7 +40,7 @@ async function loadTasks() {
             }
         });
 
-        // Task title
+        
         let title = document.createElement("span");
         title.textContent = task[1];
 
@@ -48,7 +48,7 @@ async function loadTasks() {
             title.classList.add("completed");
         }
 
-        // Delete button
+        
         let delete_button = document.createElement("button");
         delete_button.textContent = "Delete";
 
@@ -81,7 +81,7 @@ async function loadTasks() {
 }
 
 
-// Add a new task
+
 async function addtask() {
     let taskTitle = input.value.trim();
 
@@ -115,11 +115,11 @@ async function addtask() {
 }
 
 
-// Add button
+
 btn.addEventListener("click", addtask);
 
 
-// Add a task by pressing Enter
+
 input.addEventListener("keydown", function (event) {
     if (event.key === "Enter") {
         addtask();
@@ -127,5 +127,5 @@ input.addEventListener("keydown", function (event) {
 });
 
 
-// Load saved tasks when the page opens
+
 loadTasks();
