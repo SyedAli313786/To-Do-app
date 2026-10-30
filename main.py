@@ -20,7 +20,8 @@ MYSQL_USER = os.getenv("MYSQL_USER")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD")
 
 # SSL certificate downloaded from Aiven
-CA_CERT_PATH = BASE_DIR / "ca.pem"
+CA_CERT_PATH = Path("/etc/secrets/ca.pem")
+
 
 app = FastAPI()
 
