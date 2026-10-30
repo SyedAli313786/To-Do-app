@@ -1,58 +1,76 @@
 import os
+import time
+import logging
 from pathlib import Path
+from contextlib import asynccontextmanager
 
 import mysql.connector
+from mysql.connector import Error
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 
-# Load environment variables from .env
+# -----------------------------------
+# 1. Environment variables
+# -----------------------------------
+
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 
-# MySQL connection settings
 MYSQL_HOST = os.getenv("MYSQL_HOST")
 MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
 MYSQL_DATABASE = os.getenv("MYSQL_DATABASE")
 MYSQL_USER = os.getenv("MYSQL_USER")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD")
 
-# SSL certificate downloaded from Aiven
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
+# -----------------------------------
+# 2. Database connection with retries
+# -----------------------------------
 
-app = FastAPI()
+def get_connection(max_retries=3, retry_delay=2):
+    for attempt in range(1, max_retries + 1):
+        try:
+            connection = mysql.connector.connect(
+                host=MYSQL_HOST,
+                port=MYSQL_PORT,
+                database=MYSQL_DATABASE,
+                user=MYSQL_USER,
+                password=MYSQL_PASSWORD,
+                connection_timeout=5
+            )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://127.0.0.1:5500",
-        "http://localhost:5500",
-        "https://syedali313786.github.io"
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+            return connection
+
+        except mysql.connector.Error as error:
+            logger.warning(
+                f"Database connection failed "
+                f"(attempt {attempt}/{max_retries}): {error}"
+            )
+
+            if attempt == max_retries:
+                logger.error("Database unavailable after all retries.")
+
+                raise HTTPException(
+                    status_code=503,
+                    detail="Database temporarily unavailable. Please try again shortly."
+                )
+
+            time.sleep(retry_delay)
 
 
-class Taskcreate(BaseModel):
-    title: str
-
-
-def get_connection():
-    return mysql.connector.connect(
-        host=MYSQL_HOST,
-        port=MYSQL_PORT,
-        database=MYSQL_DATABASE,
-        user=MYSQL_USER,
-        password=MYSQL_PASSWORD,
-    )
+# -----------------------------------
+# 3. Create database table
+# -----------------------------------
 
 def create_table():
     conn = get_connection()
+    cursor = None
 
     try:
         cursor = conn.cursor()
@@ -68,16 +86,71 @@ def create_table():
         )
 
         conn.commit()
-        cursor.close()
+        logger.info("Database table is ready.")
+
+    except mysql.connector.Error as error:
+        logger.error(f"Database initialization failed: {error}")
 
     finally:
+        if cursor is not None:
+            cursor.close()
+
         conn.close()
 
 
-@app.on_event("startup")
-def startup():
-    create_table()
+# -----------------------------------
+# 4. FastAPI lifespan
+# -----------------------------------
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Starting Todo API...")
+
+    try:
+        create_table()
+    except Exception as error:
+        logger.warning(
+            f"Database unavailable during startup: {error}"
+        )
+
+    logger.info("Todo API startup completed.")
+
+    yield
+
+    logger.info("Todo API shutting down.")
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+# -----------------------------------
+# 5. CORS configuration
+# -----------------------------------
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://127.0.0.1:5500",
+        "http://localhost:5500",
+        "https://syedali313786.github.io"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# -----------------------------------
+# 6. Pydantic model
+# -----------------------------------
+
+class Taskcreate(BaseModel):
+    title: str
+
+
+# -----------------------------------
+# 7. Home endpoint
+# -----------------------------------
 
 @app.get("/")
 def home():
@@ -85,6 +158,10 @@ def home():
         "message": "Todo app is running"
     }
 
+
+# -----------------------------------
+# 8. About endpoint
+# -----------------------------------
 
 @app.get("/about")
 def about():
@@ -94,9 +171,14 @@ def about():
     }
 
 
+# -----------------------------------
+# 9. Create task
+# -----------------------------------
+
 @app.post("/tasks")
 def create_task(task: Taskcreate):
     conn = get_connection()
+    cursor = None
 
     try:
         cursor = conn.cursor()
@@ -113,13 +195,29 @@ def create_task(task: Taskcreate):
             "task_title": task.title
         }
 
+    except mysql.connector.Error as error:
+        logger.error(f"Error creating task: {error}")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create task."
+        )
+
     finally:
+        if cursor is not None:
+            cursor.close()
+
         conn.close()
 
+
+# -----------------------------------
+# 10. Get all tasks
+# -----------------------------------
 
 @app.get("/tasks")
 def get_tasks():
     conn = get_connection()
+    cursor = None
 
     try:
         cursor = conn.cursor()
@@ -132,13 +230,29 @@ def get_tasks():
 
         return rows
 
+    except mysql.connector.Error as error:
+        logger.error(f"Error loading tasks: {error}")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to load tasks."
+        )
+
     finally:
+        if cursor is not None:
+            cursor.close()
+
         conn.close()
 
+
+# -----------------------------------
+# 11. Update task
+# -----------------------------------
 
 @app.patch("/tasks/{task_id}")
 def update_task(task_id: int, completed: bool):
     conn = get_connection()
+    cursor = None
 
     try:
         cursor = conn.cursor()
@@ -160,13 +274,29 @@ def update_task(task_id: int, completed: bool):
             "completed": completed
         }
 
+    except mysql.connector.Error as error:
+        logger.error(f"Error updating task: {error}")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to update task."
+        )
+
     finally:
+        if cursor is not None:
+            cursor.close()
+
         conn.close()
 
+
+# -----------------------------------
+# 12. Delete task
+# -----------------------------------
 
 @app.delete("/tasks/{task_id}")
 def delete_task(task_id: int):
     conn = get_connection()
+    cursor = None
 
     try:
         cursor = conn.cursor()
@@ -183,5 +313,16 @@ def delete_task(task_id: int):
             "deleted_task": task_id
         }
 
+    except mysql.connector.Error as error:
+        logger.error(f"Error deleting task: {error}")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to delete task."
+        )
+
     finally:
+        if cursor is not None:
+            cursor.close()
+
         conn.close()
