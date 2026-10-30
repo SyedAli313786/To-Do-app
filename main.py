@@ -20,7 +20,7 @@ MYSQL_USER = os.getenv("MYSQL_USER")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD")
 
 # SSL certificate downloaded from Aiven
-CA_CERT_PATH = Path("/etc/secrets/ca.pem")
+
 
 
 app = FastAPI()
@@ -48,11 +48,7 @@ def get_connection():
         database=MYSQL_DATABASE,
         user=MYSQL_USER,
         password=MYSQL_PASSWORD,
-        ssl_ca=str(CA_CERT_PATH),
-        ssl_verify_cert=True,
-        ssl_verify_identity=True,
     )
-
 
 def create_table():
     conn = get_connection()
