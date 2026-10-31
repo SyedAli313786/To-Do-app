@@ -1,5 +1,5 @@
 .env
-ca.pem
+
 __pycache__
 Database
 .DS_Store

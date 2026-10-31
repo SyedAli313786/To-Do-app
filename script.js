@@ -2,7 +2,7 @@ let input = document.querySelector("#tasks");
 let btn = document.querySelector("#Add_button");
 let unordered_list = document.querySelector("#list");
 
-const API_URL = "https://to-do-app.syedalimahdirizvi.blitz.cloud/tasks";
+const API_URL = "https://to-do-app.ethiodeploy.app";
 
 
 async function loadTasks() {
