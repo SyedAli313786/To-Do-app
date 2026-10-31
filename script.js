@@ -4,7 +4,6 @@ let unordered_list = document.querySelector("#list");
 
 const API_URL = "https://to-do-app.ethiodeploy.app";
 
-
 async function loadTasks() {
     try {
         let response = await fetch(API_URL);
