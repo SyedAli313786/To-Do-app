@@ -1,109 +1,105 @@
-let input = document.querySelector("#tasks");
-let btn = document.querySelector("#Add_button");
-let unordered_list = document.querySelector("#list");
+javascript
+const input = document.querySelector("#tasks");
+const btn = document.querySelector("#Add_button");
+const unordered_list = document.querySelector("#list");
 
-const API_URL = "https://to-do-app.ethiodeploy.app";
+const API_URL = "https://to-do-app.ethiodeploy.app/tasks";
 
+// Load all tasks from the backend
 async function loadTasks() {
     try {
-        let response = await fetch(API_URL);
+        const response = await fetch(API_URL);
 
         if (!response.ok) {
-            throw new Error("Could not load tasks");
+            throw new Error(`Failed to load tasks: ${response.status}`);
         }
 
-        let tasks = await response.json();
+        const tasks = await response.json();
 
         unordered_list.innerHTML = "";
 
-        for (let task of tasks) {
-            let li = document.createElement("li");
+        for (const task of tasks) {
+            const li = document.createElement("li");
 
             // Create checkbox
-            let checkbox = document.createElement("input");
+            const checkbox = document.createElement("input");
             checkbox.type = "checkbox";
-            checkbox.checked = Number(task[2]) === 1;
+            checkbox.checked = Boolean(task.completed);
 
             checkbox.addEventListener("change", async function () {
                 try {
-                    let updateResponse = await fetch(
-                        `${API_URL}/${task[0]}?completed=${checkbox.checked}`,
+                    const response = await fetch(
+                        `${API_URL}/${task.id}?completed=${checkbox.checked}`,
                         {
                             method: "PATCH"
                         }
                     );
 
-                    if (!updateResponse.ok) {
-                        throw new Error("Could not update task");
+                    if (!response.ok) {
+                        throw new Error("Failed to update task");
                     }
 
                     await loadTasks();
-
                 } catch (error) {
+                    console.error("Error updating task:", error);
                     alert("Could not update the task. Please try again.");
                     checkbox.checked = !checkbox.checked;
-                    console.error(error);
                 }
             });
 
             // Create task title
-            let title = document.createElement("span");
-            title.textContent = task[1];
+            const title = document.createElement("span");
+            title.textContent = task.title;
 
-            if (Number(task[2]) === 1) {
+            if (task.completed) {
                 title.classList.add("completed");
             }
 
             // Create delete button
-            let delete_button = document.createElement("button");
-            delete_button.textContent = "Delete";
+            const deleteButton = document.createElement("button");
+            deleteButton.textContent = "Delete";
 
-            delete_button.addEventListener("click", async function () {
+            deleteButton.addEventListener("click", async function () {
                 try {
-                    let deleteResponse = await fetch(
-                        `${API_URL}/${task[0]}`,
-                        {
-                            method: "DELETE"
-                        }
-                    );
+                    const response = await fetch(`${API_URL}/${task.id}`, {
+                        method: "DELETE"
+                    });
 
-                    if (!deleteResponse.ok) {
-                        throw new Error("Could not delete task");
+                    if (!response.ok) {
+                        throw new Error("Failed to delete task");
                     }
 
                     await loadTasks();
-
                 } catch (error) {
+                    console.error("Error deleting task:", error);
                     alert("Could not delete the task. Please try again.");
-                    console.error(error);
                 }
             });
 
             // Add elements to the list item
             li.appendChild(checkbox);
             li.appendChild(title);
-            li.appendChild(delete_button);
+            li.appendChild(deleteButton);
 
             unordered_list.appendChild(li);
         }
-
     } catch (error) {
         console.error("Error loading tasks:", error);
         alert("Could not load tasks. Please check your internet connection and backend.");
     }
 }
 
-
+// Add a new task
 async function addtask() {
-    let taskTitle = input.value.trim();
+    const taskTitle = input.value.trim();
 
     if (taskTitle === "") {
-        alert("Please enter a task");
+        alert("Please enter a task.");
         return;
     }
 
     try {
-        let response = await fetch(API_URL, {
+        const response = await fetch(API_URL, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
@@ -114,23 +110,19 @@ async function addtask() {
         });
 
         if (!response.ok) {
-            throw new Error("Could not save task");
+            throw new Error(`Failed to save task: ${response.status}`);
         }
 
         input.value = "";
-
         await loadTasks();
-
     } catch (error) {
         console.error("Error adding task:", error);
         alert("Could not save the task. Please try again.");
     }
 }
 
-
-// Add task when button is clicked
+// Add task when the button is clicked
 btn.addEventListener("click", addtask);
-
 
 // Add task when Enter is pressed
 input.addEventListener("keydown", function (event) {
@@ -138,7 +130,6 @@ input.addEventListener("keydown", function (event) {
         addtask();
     }
 });
-
 
 // Load existing tasks when the page opens
 loadTasks();
