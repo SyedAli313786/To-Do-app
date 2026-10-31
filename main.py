@@ -57,15 +57,13 @@ def get_connection(max_retries=3, retry_delay=2):
                 "user": MYSQL_USER,
                 "password": MYSQL_PASSWORD,
                 "connection_timeout": 10,
+                "ssl_disabled": False,
             }
 
-            # Verify the database server certificate when a CA is configured
             if _ssl_ca_file:
-                connection_options.update({
-                    "ssl_ca": _ssl_ca_file,
-                    "ssl_verify_cert": True,
-                    "ssl_verify_identity": True,
-                })
+                connection_options["ssl_ca"] = _ssl_ca_file
+                connection_options["ssl_verify_cert"] = True
+                connection_options["ssl_verify_identity"] = True
 
             connection = mysql.connector.connect(**connection_options)
 
@@ -76,14 +74,14 @@ def get_connection(max_retries=3, retry_delay=2):
                 "Database connection failed (attempt %s/%s): %s",
                 attempt,
                 max_retries,
-                error
+                error,
             )
 
             if attempt == max_retries:
                 logger.error("Database unavailable after all retries.")
                 raise HTTPException(
                     status_code=503,
-                    detail="Database temporarily unavailable. Please try again shortly."
+                    detail="Database temporarily unavailable. Please try again shortly.",
                 )
 
             time.sleep(retry_delay)
