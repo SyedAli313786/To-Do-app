@@ -5,7 +5,7 @@ const unordered_list = document.querySelector("#list");
 
 const API_URL = "https://to-do-app.ethiodeploy.app/tasks";
 
-// Load all tasks from the backend
+
 async function loadTasks() {
     try {
         const response = await fetch(API_URL);
