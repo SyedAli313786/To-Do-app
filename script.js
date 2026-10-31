@@ -1,11 +1,11 @@
-javascript
+
 const input = document.querySelector("#tasks");
 const btn = document.querySelector("#Add_button");
 const unordered_list = document.querySelector("#list");
 
 const API_URL = "https://to-do-app.ethiodeploy.app/tasks";
 
-
+// Load all tasks from the backend
 async function loadTasks() {
     try {
         const response = await fetch(API_URL);
@@ -15,6 +15,13 @@ async function loadTasks() {
         }
 
         const tasks = await response.json();
+
+        console.log("Tasks received:", tasks);
+
+        // Make sure the API returned an array
+        if (!Array.isArray(tasks)) {
+            throw new Error("The API response is not an array.");
+        }
 
         unordered_list.innerHTML = "";
 
@@ -36,7 +43,7 @@ async function loadTasks() {
                     );
 
                     if (!response.ok) {
-                        throw new Error("Failed to update task");
+                        throw new Error("Failed to update task.");
                     }
 
                     await loadTasks();
@@ -66,7 +73,7 @@ async function loadTasks() {
                     });
 
                     if (!response.ok) {
-                        throw new Error("Failed to delete task");
+                        throw new Error("Failed to delete task.");
                     }
 
                     await loadTasks();
@@ -85,7 +92,7 @@ async function loadTasks() {
         }
     } catch (error) {
         console.error("Error loading tasks:", error);
-        alert("Could not load tasks. Please check your internet connection and backend.");
+        alert("Could not load tasks. Please check the backend connection.");
     }
 }
 
@@ -115,6 +122,7 @@ async function addtask() {
 
         input.value = "";
         await loadTasks();
+
     } catch (error) {
         console.error("Error adding task:", error);
         alert("Could not save the task. Please try again.");
