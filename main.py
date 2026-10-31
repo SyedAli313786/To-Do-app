@@ -27,7 +27,7 @@ MYSQL_USER = os.getenv("MYSQL_USER")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD")
 
 # SSL certificate located in the same folder as main.py
-SSL_CA_PATH = BASE_DIR / "ca.pem"
+SSL_CA_PATH = Path("/app/ca.pem") if Path("/app/ca.pem").is_file() else BASE_DIR / "ca.pem"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -52,6 +52,9 @@ def get_connection(max_retries=3, retry_delay=2):
             status_code=503,
             detail="Database configuration is incomplete."
         )
+    logger.info("Application directory: %s", BASE_DIR)
+    logger.info("SSL certificate path: %s", SSL_CA_PATH)
+    logger.info("SSL certificate exists: %s", SSL_CA_PATH.is_file())
 
     # Check SSL certificate
     if not SSL_CA_PATH.is_file():
