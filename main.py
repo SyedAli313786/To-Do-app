@@ -16,8 +16,6 @@ from dotenv import load_dotenv
 # ==========================================
 
 BASE_DIR = Path(__file__).resolve().parent
-
-# Load environment variables
 load_dotenv(BASE_DIR / ".env")
 
 MYSQL_HOST = os.getenv("MYSQL_HOST")
@@ -26,11 +24,15 @@ MYSQL_DATABASE = os.getenv("MYSQL_DATABASE")
 MYSQL_USER = os.getenv("MYSQL_USER")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD")
 
-# SSL certificate located in the same folder as main.py
-SSL_CA_PATH = Path("/app/ca.pem") if Path("/app/ca.pem").is_file() else BASE_DIR / "ca.pem"
+# CA certificate should be alongside main.py
+SSL_CA_PATH = BASE_DIR / "ca.pem"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+logger.info("Application directory: %s", BASE_DIR)
+logger.info("Expected CA certificate: %s", SSL_CA_PATH)
+logger.info("CA certificate exists: %s", SSL_CA_PATH.is_file())
 
 
 # ==========================================
@@ -39,7 +41,6 @@ logger = logging.getLogger(__name__)
 
 def get_connection(max_retries=3, retry_delay=2):
 
-    # Check database configuration
     if not all([
         MYSQL_HOST,
         MYSQL_DATABASE,
@@ -47,22 +48,13 @@ def get_connection(max_retries=3, retry_delay=2):
         MYSQL_PASSWORD
     ]):
         logger.error("Missing MySQL environment variables.")
-
         raise HTTPException(
             status_code=503,
             detail="Database configuration is incomplete."
         )
-    logger.info("Application directory: %s", BASE_DIR)
-    logger.info("SSL certificate path: %s", SSL_CA_PATH)
-    logger.info("SSL certificate exists: %s", SSL_CA_PATH.is_file())
 
-    # Check SSL certificate
     if not SSL_CA_PATH.is_file():
-        logger.error(
-            "SSL certificate not found at: %s",
-            SSL_CA_PATH
-        )
-
+        logger.error("CA certificate not found at: %s", SSL_CA_PATH)
         raise HTTPException(
             status_code=503,
             detail="Database SSL certificate is missing."
@@ -75,29 +67,20 @@ def get_connection(max_retries=3, retry_delay=2):
         "user": MYSQL_USER,
         "password": MYSQL_PASSWORD,
         "connection_timeout": 10,
-
-        # SSL configuration
         "ssl_disabled": False,
         "ssl_ca": str(SSL_CA_PATH),
         "ssl_verify_cert": True,
         "ssl_verify_identity": True,
-
-        # Use pure Python MySQL connector
         "use_pure": True,
     }
 
     for attempt in range(1, max_retries + 1):
         try:
-            connection = mysql.connector.connect(
-                **connection_options
-            )
-
+            connection = mysql.connector.connect(**connection_options)
             logger.info("Successfully connected to MySQL.")
-
             return connection
 
         except mysql.connector.Error as error:
-
             logger.warning(
                 "Database connection failed (attempt %s/%s): %s",
                 attempt,
@@ -106,10 +89,7 @@ def get_connection(max_retries=3, retry_delay=2):
             )
 
             if attempt == max_retries:
-                logger.error(
-                    "Database unavailable after all retries."
-                )
-
+                logger.error("Database unavailable after all retries.")
                 raise HTTPException(
                     status_code=503,
                     detail="Database temporarily unavailable. Please try again shortly."
@@ -123,13 +103,11 @@ def get_connection(max_retries=3, retry_delay=2):
 # ==========================================
 
 def create_table():
-
     conn = get_connection()
     cursor = None
 
     try:
         cursor = conn.cursor()
-
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS tasks (
                 id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -137,24 +115,16 @@ def create_table():
                 completed TINYINT(1) NOT NULL DEFAULT 0
             )
         """)
-
         conn.commit()
-
         logger.info("Database table is ready.")
 
     except mysql.connector.Error as error:
-
-        logger.error(
-            "Database initialization failed: %s",
-            error
-        )
-
+        logger.error("Database initialization failed: %s", error)
         raise
 
     finally:
         if cursor is not None:
             cursor.close()
-
         conn.close()
 
 
@@ -164,28 +134,17 @@ def create_table():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-
     logger.info("Starting Todo API...")
 
     try:
         create_table()
-
     except Exception as error:
-        logger.warning(
-            "Database initialization unavailable: %s",
-            error
-        )
+        logger.warning("Database initialization unavailable: %s", error)
 
     logger.info("Todo API startup completed.")
-
     yield
-
     logger.info("Todo API shutting down.")
 
-
-# ==========================================
-# FASTAPI APPLICATION
-# ==========================================
 
 app = FastAPI(lifespan=lifespan)
 
@@ -196,13 +155,11 @@ app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-
     allow_origins=[
         "http://127.0.0.1:5500",
         "http://localhost:5500",
         "https://syedali313786.github.io"
     ],
-
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -210,7 +167,7 @@ app.add_middleware(
 
 
 # ==========================================
-# PYDANTIC MODEL
+# TASK MODEL
 # ==========================================
 
 class TaskCreate(BaseModel):
@@ -218,24 +175,20 @@ class TaskCreate(BaseModel):
 
 
 # ==========================================
-# HOME ENDPOINT
+# HOME
 # ==========================================
 
 @app.get("/")
 def home():
-
-    return {
-        "message": "Todo app is running"
-    }
+    return {"message": "Todo app is running"}
 
 
 # ==========================================
-# ABOUT ENDPOINT
+# ABOUT
 # ==========================================
 
 @app.get("/about")
 def about():
-
     return {
         "project": "Todo app",
         "status": "learning api"
@@ -248,7 +201,6 @@ def about():
 
 @app.post("/tasks")
 def create_task(task: TaskCreate):
-
     title = task.title.strip()
 
     if not title:
@@ -262,12 +214,10 @@ def create_task(task: TaskCreate):
 
     try:
         cursor = conn.cursor()
-
         cursor.execute(
             "INSERT INTO tasks (title) VALUES (%s)",
             (title,)
         )
-
         conn.commit()
 
         return {
@@ -278,12 +228,7 @@ def create_task(task: TaskCreate):
         }
 
     except mysql.connector.Error as error:
-
-        logger.error(
-            "Error creating task: %s",
-            error
-        )
-
+        logger.error("Error creating task: %s", error)
         raise HTTPException(
             status_code=500,
             detail="Failed to create task."
@@ -292,7 +237,6 @@ def create_task(task: TaskCreate):
     finally:
         if cursor is not None:
             cursor.close()
-
         conn.close()
 
 
@@ -302,17 +246,14 @@ def create_task(task: TaskCreate):
 
 @app.get("/tasks")
 def get_tasks():
-
     conn = get_connection()
     cursor = None
 
     try:
         cursor = conn.cursor()
-
         cursor.execute(
             "SELECT id, title, completed FROM tasks ORDER BY id"
         )
-
         rows = cursor.fetchall()
 
         return [
@@ -325,12 +266,7 @@ def get_tasks():
         ]
 
     except mysql.connector.Error as error:
-
-        logger.error(
-            "Error loading tasks: %s",
-            error
-        )
-
+        logger.error("Error loading tasks: %s", error)
         raise HTTPException(
             status_code=500,
             detail="Failed to load tasks."
@@ -339,7 +275,6 @@ def get_tasks():
     finally:
         if cursor is not None:
             cursor.close()
-
         conn.close()
 
 
@@ -349,29 +284,24 @@ def get_tasks():
 
 @app.patch("/tasks/{task_id}")
 def update_task(task_id: int, completed: bool):
-
     conn = get_connection()
     cursor = None
 
     try:
         cursor = conn.cursor()
-
         cursor.execute(
             "UPDATE tasks SET completed = %s WHERE id = %s",
             (int(completed), task_id)
         )
-
         conn.commit()
 
         if cursor.rowcount == 0:
-
             cursor.execute(
                 "SELECT id FROM tasks WHERE id = %s",
                 (task_id,)
             )
 
             if cursor.fetchone() is None:
-
                 raise HTTPException(
                     status_code=404,
                     detail="Task not found."
@@ -384,12 +314,7 @@ def update_task(task_id: int, completed: bool):
         }
 
     except mysql.connector.Error as error:
-
-        logger.error(
-            "Error updating task: %s",
-            error
-        )
-
+        logger.error("Error updating task: %s", error)
         raise HTTPException(
             status_code=500,
             detail="Failed to update task."
@@ -398,7 +323,6 @@ def update_task(task_id: int, completed: bool):
     finally:
         if cursor is not None:
             cursor.close()
-
         conn.close()
 
 
@@ -408,22 +332,18 @@ def update_task(task_id: int, completed: bool):
 
 @app.delete("/tasks/{task_id}")
 def delete_task(task_id: int):
-
     conn = get_connection()
     cursor = None
 
     try:
         cursor = conn.cursor()
-
         cursor.execute(
             "DELETE FROM tasks WHERE id = %s",
             (task_id,)
         )
-
         conn.commit()
 
         if cursor.rowcount == 0:
-
             raise HTTPException(
                 status_code=404,
                 detail="Task not found."
@@ -435,12 +355,7 @@ def delete_task(task_id: int):
         }
 
     except mysql.connector.Error as error:
-
-        logger.error(
-            "Error deleting task: %s",
-            error
-        )
-
+        logger.error("Error deleting task: %s", error)
         raise HTTPException(
             status_code=500,
             detail="Failed to delete task."
@@ -449,5 +364,4 @@ def delete_task(task_id: int):
     finally:
         if cursor is not None:
             cursor.close()
-
         conn.close()
